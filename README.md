@@ -1,181 +1,331 @@
-# AI Code Planner
+<h1 align="center">AI Code Planner</h1>
 
-A Python CLI coding agent that helps you plan and execute code changes in an existing repository using a structured Plan → Approve → Execute workflow.
+<p align="center">
+  A human-in-the-loop CLI coding agent that safely inspects repositories, formulates risk-aware implementation plans,
+  and executes verified code modifications using <strong>PydanticAI</strong> and <strong>Google Gemini</strong>.
+</p>
 
-It is built with PydanticAI and Google Gemini, and is designed to work as a human-in-the-loop assistant for software maintenance tasks such as feature implementation, refactoring, bug fixes, and documentation updates.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/Pydantic_AI-Latest-E92063.svg" alt="Pydantic AI">
+  <img src="https://img.shields.io/badge/Google_Gemini-2.0_Flash-4285F4.svg" alt="Google Gemini">
+  <img src="https://img.shields.io/badge/Observability-Logfire-FF6F00.svg" alt="Logfire">
+  <img src="https://img.shields.io/badge/uv-Package_Manager-purple.svg" alt="uv">
+  <img src="https://img.shields.io/badge/CLI-Tool-009688.svg" alt="CLI">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
+</p>
 
-## Why this project exists
+---
 
-Many coding agents jump straight into editing code without giving the user a clear view of what will change. This project introduces a safer pattern:
+## Overview
 
-1. The planner reads the project structure and relevant files.
-2. It creates a step-by-step implementation plan.
-3. You review the plan and approve, reject, or revise it.
-4. The executor applies the approved changes and verifies them.
+**AI Code Planner** is an autonomous yet strictly governed CLI pair programmer built for existing codebases. Unlike traditional AI coding tools that immediately edit code without review, AI Code Planner introduces a predictable **Plan $\rightarrow$ Approve $\rightarrow$ Execute** lifecycle:
 
-This keeps the workflow transparent and reduces accidental or destructive edits.
+1. **Read-Only Inspection**: Analyzes project trees, symbols, and files without touching disk.
+2. **Deterministic Step Planning**: Produces a structured implementation blueprint with fine-grained risk ratings.
+3. **Human Approval Gate**: Awaits user authorization before touching a single line of code.
+4. **Verified Atomic Execution**: Performs exact in-file replacements and halts immediately if unexpected drift occurs.
 
-## Key features
+---
 
-- Structured planning before changes are made
-- Read-only analysis in the planning phase
-- Human approval before execution
-- Exact in-file replacements with validation
-- Optional shell execution via `--allow-shell`
-- Workspace sandboxing to prevent path traversal outside the project root
-- Rich terminal UI with risk levels and execution tracking
-- Logfire-based observability for tracing and debugging
+## Why This Project Exists
 
-## How it works
+Autonomous coding assistants frequently fail by:
+- Overwriting critical configuration or unrelated functions.
+- Performing uncontrolled edits across multiple files without rollbacks.
+- Operating as an opaque "black box" where developers cannot anticipate modifications.
 
-The tool follows a two-phase workflow:
+**AI Code Planner** addresses these concerns with architectural boundaries:
+- **Zero Surprises**: You inspect the full sequence of actions and risk levels before execution begins.
+- **Fail-Safe Replacements**: Every file modification requires strict content matching and post-write verification.
+- **Strict Sandbox**: Path traversal protections prevent file reads or writes outside the target workspace.
 
-### Phase 1: Planning
+---
 
-The planner agent:
-- lists the workspace structure
-- searches for relevant symbols and patterns
-- reads the specific files involved
-- produces a structured implementation plan with risk assessment
+## Key Features
 
-### Phase 2: Execution
+### 🔍 Read-Only Discovery
+- Deep directory scanning and pattern searches.
+- Symbol-aware file reads without modification side effects.
+- Complete workspace sandboxing preventing path escape (`../`).
 
-After approval, the executor agent:
-- performs the steps in order
-- reads files before replacing content
-- verifies the change after writing
-- stops immediately if a replacement fails
+### 📋 Risk-Aware Planning
+- Multi-step task decomposition before execution.
+- Automated risk classification:
+  - 🟢 **Low**: Read operations, new file additions, documentation updates.
+  - 🟡 **Medium**: Modifying existing functions, adding new imports.
+  - 🔴 **High**: File deletions, structural refactoring, irreversible modifications.
 
-## Requirements
+### 🛡️ Human-in-the-Loop Approval Gate
+- Interactive terminal REPL for interactive task authoring.
+- Explicit approval prompt (`Approve [y] / Reject [n] / Revise [r]`).
+- Non-interactive modes for automated pipelines (`--plan-only`, single prompt).
 
-- Python 3.12+
-- Google Gemini API key
-- `uv` (recommended for dependency management)
+### ⚡ Verified Exact In-File Replacements
+- Uses deterministic string matching rather than blind file overwrites.
+- Immediate halted execution if target lines or signatures have drifted.
+- Optional shell execution (`--allow-shell`) disabled by default for security.
 
-## Setup
+### 🔭 Full Observability with Logfire
+- Distributed tracing powered by **Pydantic Logfire**.
+- Step-by-step latency, token consumption, and agent decision tracking.
 
-### 1. Clone the repository
+---
+
+## Architecture & Workflow
+
+```
+┌────────────────────────────────────────────────────────┐
+│                      User Request                      │
+│      "Add health check endpoint and update docs"       │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│                    Planner Agent                       │
+│  ┌───────────────────────┐   ┌──────────────────────┐  │
+│  │   Workspace Explorer  │   │     File Reader      │  │
+│  │      (Read-Only)      │   │      (Sandboxed)     │  │
+│  └───────────┬───────────┘   └──────────┬───────────┘  │
+│              └────────────┬─────────────┘              │
+│                           ▼                            │
+│           Structured Implementation Plan               │
+│          - Step 1: Create health route (Low)           │
+│          - Step 2: Register in main.py (Medium)        │
+│          - Step 3: Append docs in README (Low)         │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│              Human Approval Gate (CLI REPL)            │
+│       [y] Approve   |   [n] Reject   |   [r] Revise    │
+└───────────────────────────┬────────────────────────────┘
+                            │ Approved
+┌───────────────────────────▼────────────────────────────┐
+│                    Executor Agent                      │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  1. Read target slice from disk                  │  │
+│  │  2. Exact match target block                     │  │
+│  │  3. Atomic replacement write                     │  │
+│  │  4. Post-write verification & syntax check       │  │
+│  └──────────────────────────────────────────────────┘  │
+└───────────────────────────┬────────────────────────────┘
+                            │ Success
+┌───────────────────────────▼────────────────────────────┐
+│                 Verified Codebase State                │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Python 3.12+ | High-performance async CLI runtime |
+| PydanticAI | Multi-agent framework for planning and execution |
+| Google Gemini 2.0 Flash | Ultra-fast planning and structured code generation |
+| Pydantic Logfire | Production observability, tracing, and agent telemetry |
+| Rich | Beautiful terminal tables, syntax highlighting, and progress bars |
+| uv | Blazing-fast virtual environment and dependency manager |
+| python-dotenv | Safe environment variable management |
+
+---
+
+## Project Structure
+
+```text
+AI-Code-Planner/
+├── agent_cli.py          # Interactive and single-prompt CLI entrypoint
+├── code_agent.py         # Planner/Executor agent logic & sandboxed tools
+├── pyproject.toml        # Project dependencies, tools, and metadata
+├── requirements.txt      # Standard pip requirements definition
+├── .python-version       # Python version pin (3.12)
+├── .gitignore            # Git exclusion rules
+├── uv.lock               # Deterministic dependency lockfile
+└── README.md             # Project documentation
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12 or higher
+- A Google Gemini API Key ([Google AI Studio](https://aistudio.google.com/))
+- `uv` (recommended) or `pip`
+
+Install **uv**:
+
+```bash
+pip install uv
+```
+
+---
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/wcyashdarji-spec/AI-Code-Planner.git
 cd AI-Code-Planner
 ```
 
-### 2. Create and activate a virtual environment
+### 2. Set Up Virtual Environment
 
+Using **uv**:
 ```bash
 uv venv
+```
+
+Activate the environment:
+
+**macOS / Linux:**
+```bash
 source .venv/bin/activate
 ```
 
-On Windows PowerShell:
-
+**Windows (PowerShell):**
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-### 3. Install dependencies
+### 3. Install Dependencies
 
+Using **uv**:
 ```bash
 uv sync
 ```
 
-### 4. Configure environment variables
+Using **pip**:
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment Variables
 
 Create a `.env` file in the project root:
 
 ```env
+# Required: Google Gemini API Key
 GEMINI_API_KEY=your-gemini-api-key-here
+
+# Model Selection
 MODEL_NAME=gemini-2.0-flash
 
-# Optional: defaults to the current directory
+# Default Target Workspace (Optional: defaults to current directory)
 AGENT_WORKSPACE=.
+
+# Observability (Optional: Logfire token)
+LOGFIRE_TOKEN=
 ```
 
-## Usage
+---
 
-### Interactive mode
+## Usage & Execution Modes
+
+### 1. Interactive Mode (Recommended)
+Launches an interactive session where you formulate tasks, review formatted plans, and approve them interactively:
 
 ```bash
-python agent_cli.py -w "/absolute/path/to/your/project" --allow-shell
+python agent_cli.py -w "/absolute/path/to/project" --allow-shell
 ```
 
-This opens a REPL where you can type a task, review the generated plan, and approve or reject it before execution.
-
-### Single prompt mode
+### 2. Single-Prompt Mode
+Generates a plan and executes it autonomously without human interruption (ideal for CI/CD or scripted chores):
 
 ```bash
-python agent_cli.py -w "/absolute/path/to/your/project" -p "Add docstrings to all public functions"
+python agent_cli.py -w "/absolute/path/to/project" -p "Add type annotations to all methods in services/auth.py"
 ```
 
-This generates a plan and auto-executes it without pausing for approval.
-
-### Plan-only mode
+### 3. Plan-Only Mode
+Performs deep workspace inspection and prints the implementation plan and risk assessment without making changes:
 
 ```bash
-python agent_cli.py -w "/absolute/path/to/your/project" --plan-only -p "Refactor the database service"
+python agent_cli.py -w "/absolute/path/to/project" --plan-only -p "Refactor database connection pool to asyncpg"
 ```
 
-This displays the plan but does not execute any code changes.
+---
 
-## CLI arguments
+## CLI Reference
 
-- `-p`, `--prompt`: single prompt for non-interactive mode
-- `-w`, `--workspace`: absolute path to the target project root
-- `--allow-shell`: enables shell command execution in the executor phase
-- `--plan-only`: generates and displays the plan without applying changes
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-w`, `--workspace` | `string` | `.` | Absolute or relative path to the target repository |
+| `-p`, `--prompt` | `string` | `None` | Direct task prompt (runs in headless mode) |
+| `--plan-only` | `flag` | `False` | Generates and prints the plan without executing changes |
+| `--allow-shell` | `flag` | `False` | Permits the executor agent to run terminal commands |
+| `--model` | `string` | `gemini-2.0-flash`| Override the configured Gemini model |
+| `--verbose` | `flag` | `False` | Outputs detailed agent diagnostics and debug logs |
 
-## Example workflow
+---
 
-```bash
-python agent_cli.py -w "/Users/me/my-app"
-```
-
-Then enter a request such as:
+## Example Walkthrough
 
 ```text
-Add a health check endpoint and update the README with usage instructions.
+$ python agent_cli.py -w "D:/Projects/EcommerceService"
+
+AI Code Planner initialized for workspace: D:/Projects/EcommerceService
+Model: gemini-2.0-flash | Shell Execution: DISABLED
+
+Enter your task: Add a GET /health check endpoint to app/main.py
+
+[Planner] Inspecting workspace tree...
+[Planner] Reading app/main.py (54 lines)...
+[Planner] Synthesizing execution plan...
+
+================================ IMPLEMENTATION PLAN ================================
+Goal: Add health check endpoint returning system status and uptime.
+Risk Assessment: LOW
+
+Steps:
+1. [app/main.py] Import HealthResponse schema from app.schemas.response [Risk: LOW]
+2. [app/main.py] Register @app.get('/health', response_model=HealthResponse) [Risk: LOW]
+3. [tests/test_health.py] Create unit test verifying 200 OK status [Risk: LOW]
+====================================================================================
+
+Do you approve this plan? (y/n/revise): y
+
+[Executor] Applying Step 1 in app/main.py... Verified.
+[Executor] Applying Step 2 in app/main.py... Verified.
+[Executor] Writing tests/test_health.py... Created.
+
+All 3 steps executed and verified successfully in 1.42s.
 ```
 
-The agent will analyse the project, show a risk-aware plan, and wait for your decision before making changes.
+---
 
-## Safety and risk model
+## Safety & Risk Model
 
-Every generated plan includes a risk level:
+Every plan item is scored through an automated heuristic and semantic risk analyzer:
 
-- Low: adding files or new content only
-- Medium: modifying existing code
-- High: deleting or overwriting files or performing irreversible work
+| Risk Level | Trigger Criteria | Safety Action |
+|:---|---|---|
+| 🟢 **LOW** | Creating new files, appending documentation, non-breaking additions | Standard file writing with path containment check |
+| 🟡 **MEDIUM** | In-place modifications to existing functions, schema updates | Strict target block matching; fails if code has drifted |
+| 🔴 **HIGH** | File deletions, configuration rewrites, irreversible shell operations | Explicit secondary confirmation; strict sandbox assertion |
 
-The tool is designed to be conservative and to stop when an exact edit cannot be verified.
+### Built-in Guardrails:
+- **Path Traversal Shield**: Paths resolving outside the defined `--workspace` throw a fatal security error.
+- **Atomic Rollback**: If an exact code slice replacement cannot find a 100% character match, the operation aborts with zero modifications written.
+- **Opt-in Shell**: Terminal commands cannot be executed unless `--allow-shell` is explicitly provided by the user.
 
-## Project structure
+---
 
-```text
-.
-├── agent_cli.py          # CLI entry point
-├── code_agent.py         # Planner/executor logic and tool implementations
-├── pyproject.toml        # Python project metadata and dependencies
-├── README.md             # Project documentation
-├── .env                  # Local environment configuration
-├── .python-version       # Python version pin
-├── .gitignore            # Git ignore rules
-└── uv.lock               # Locked dependency versions
+## Logging & Observability
+
+AI Code Planner natively instruments all planner, executor, and tool calls with **Pydantic Logfire**:
+
+```bash
+# Optional: Authenticate Logfire for cloud telemetry
+logfire auth
 ```
 
-## Stack
+Captured Telemetry:
+- Exact LLM prompts, completions, and token counts.
+- Time spent in read-only discovery vs code execution.
+- Tool call inputs, outputs, and diff verification results.
 
-- Python 3.12+
-- PydanticAI
-- Google Gemini
-- Pydantic Logfire
-- `uv` for environment management
-- `python-dotenv` for configuration
+---
 
-## Notes
+## License
 
-- Shell execution is intentionally disabled by default.
-- The workspace is validated to ensure edits stay within the target directory.
-- The planner is read-only; it cannot modify files.
-
-This project is best suited for developers who want an AI assistant that explains and confirms its actions before writing code.
+This project is licensed under the [MIT License](LICENSE).
